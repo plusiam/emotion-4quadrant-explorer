@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Emotion 4-Quadrant Explorer</title>
+    <title>감정 4분면 탐색기 - 개선버전</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.js"></script>
     <style>
         /* 기본 스타일 */
@@ -67,6 +67,12 @@
             box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
         }
 
+        .quadrant.drag-over {
+            transform: scale(1.02);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            border: 2px dashed rgba(255, 255, 255, 0.5);
+        }
+
         .quadrant-header {
             text-align: center;
             margin-bottom: 15px;
@@ -118,6 +124,11 @@
             background: rgba(255, 255, 255, 1);
         }
 
+        .emotion-chip.dragging {
+            opacity: 0.5;
+            cursor: grabbing;
+        }
+
         .emotion-chip.touch-pressed {
             transform: scale(0.95);
             opacity: 0.8;
@@ -145,6 +156,15 @@
             50% { opacity: 0.7; }
         }
 
+        /* 드래그 고스트 이미지 */
+        .drag-ghost {
+            position: fixed;
+            pointer-events: none;
+            z-index: 1000;
+            opacity: 0.8;
+            transform: rotate(-2deg);
+        }
+
         /* 모바일 메뉴 */
         .mobile-context-menu {
             position: fixed;
@@ -162,13 +182,13 @@
         }
 
         @keyframes mobileMenuSlideUp {
-            from { 
-                opacity: 0; 
-                transform: translate(-50%, -50%) scale(0.9); 
+            from {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.9);
             }
-            to { 
-                opacity: 1; 
-                transform: translate(-50%, -50%) scale(1); 
+            to {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
             }
         }
 
@@ -240,24 +260,30 @@
             .container {
                 padding: 15px;
             }
-            
+
             .quadrant {
                 min-height: 150px;
                 padding: 15px;
             }
-            
+
             .quadrant-title {
                 font-size: 16px;
             }
-            
+
             .emotion-chip {
                 font-size: 13px;
                 padding: 6px 12px;
             }
-            
+
             .header h1 {
                 font-size: 2rem;
             }
+        }
+
+        /* 드롭 영역 하이라이트 */
+        .emotion-source.drag-over {
+            background: rgba(255, 255, 255, 1);
+            border: 2px dashed #3b82f6;
         }
     </style>
 </head>
@@ -272,14 +298,14 @@
         <!-- 메인 그리드 -->
         <div class="main-grid">
             <!-- 감정 소스 영역 -->
-            <div class="emotion-source">
+            <div class="emotion-source" id="emotionSource">
                 <h2 style="font-size: 1.5rem; font-weight: bold; margin-bottom: 15px; color: #374151;">
                     🎯 감정 카드함
                 </h2>
                 <p style="color: #6b7280; margin-bottom: 20px; font-size: 14px;">
                     아래 감정들을 적절한 분면으로 드래그하거나 터치해보세요
                 </p>
-                <div id="emotionSource" class="emotion-container">
+                <div class="emotion-container" id="sourceContainer">
                     <!-- 감정 카드들이 여기에 동적으로 추가됩니다 -->
                 </div>
             </div>
@@ -374,17 +400,20 @@
             { name: { ko: '감사', en: 'Grateful' }, emoji: '🙏', description: { ko: '고마움을 느끼는 마음', en: 'Thankful and appreciative heart' } }
         ];
 
+        // 디바이스 타입 감지
+        const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
         // 토스트 메시지 표시
         function showToast(message) {
             // 기존 토스트 제거
             document.querySelectorAll('.custom-toast').forEach(t => t.remove());
-            
+
             const toast = document.createElement('div');
             toast.className = 'custom-toast';
             toast.textContent = message;
-            
+
             document.body.appendChild(toast);
-            
+
             setTimeout(() => {
                 if (toast.parentNode) {
                     toast.style.animation = 'fadeOutRight 0.3s ease-out';
@@ -402,25 +431,144 @@
             const chip = document.createElement('div');
             chip.className = 'emotion-chip';
             chip.dataset.emotion = JSON.stringify(emotion);
-            
+            chip.draggable = true; // 드래그 가능 설정
+
             const emoji = document.createElement('span');
             emoji.textContent = emotion.emoji;
-            
+
             const name = document.createElement('span');
             name.textContent = emotion.name[appState.language];
-            
+
             chip.appendChild(emoji);
             chip.appendChild(name);
-            
+
+            // 드래그 이벤트 추가
+            addDragEvents(chip);
+
             return chip;
+        }
+
+        // 드래그 이벤트 추가
+        function addDragEvents(chip) {
+            // 데스크톱 드래그 이벤트
+            chip.addEventListener('dragstart', handleDragStart);
+            chip.addEventListener('dragend', handleDragEnd);
+
+            // 터치 이벤트는 별도로 처리
+            if (isTouchDevice) {
+                addTouchEventsToChip(chip);
+            }
+        }
+
+        // 드래그 시작
+        let draggedElement = null;
+
+        function handleDragStart(e) {
+            draggedElement = e.target;
+            e.target.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/html', e.target.innerHTML);
+        }
+
+        // 드래그 종료
+        function handleDragEnd(e) {
+            e.target.classList.remove('dragging');
+
+            // 모든 드래그 오버 효과 제거
+            document.querySelectorAll('.drag-over').forEach(el => {
+                el.classList.remove('drag-over');
+            });
+        }
+
+        // 드롭 영역 설정
+        function setupDropZones() {
+            // 4분면 드롭 영역
+            document.querySelectorAll('.quadrant').forEach(quadrant => {
+                quadrant.addEventListener('dragover', handleDragOver);
+                quadrant.addEventListener('drop', handleDrop);
+                quadrant.addEventListener('dragenter', handleDragEnter);
+                quadrant.addEventListener('dragleave', handleDragLeave);
+            });
+
+            // 소스 영역 드롭 설정
+            const sourceArea = document.getElementById('emotionSource');
+            sourceArea.addEventListener('dragover', handleDragOver);
+            sourceArea.addEventListener('drop', handleDropToSource);
+            sourceArea.addEventListener('dragenter', handleDragEnter);
+            sourceArea.addEventListener('dragleave', handleDragLeave);
+        }
+
+        // 드래그 오버
+        function handleDragOver(e) {
+            if (e.preventDefault) {
+                e.preventDefault();
+            }
+            e.dataTransfer.dropEffect = 'move';
+            return false;
+        }
+
+        // 드래그 엔터
+        function handleDragEnter(e) {
+            this.classList.add('drag-over');
+        }
+
+        // 드래그 리브
+        function handleDragLeave(e) {
+            if (e.target === this) {
+                this.classList.remove('drag-over');
+            }
+        }
+
+        // 드롭 처리
+        function handleDrop(e) {
+            if (e.stopPropagation) {
+                e.stopPropagation();
+            }
+            e.preventDefault();
+
+            this.classList.remove('drag-over');
+
+            if (draggedElement) {
+                const emotionData = draggedElement.dataset.emotion;
+                if (emotionData) {
+                    const emotion = JSON.parse(emotionData);
+                    const targetQuadrant = this.dataset.quadrant;
+
+                    if (targetQuadrant) {
+                        moveEmotionToQuadrant(emotion, targetQuadrant);
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        // 소스로 드롭
+        function handleDropToSource(e) {
+            if (e.stopPropagation) {
+                e.stopPropagation();
+            }
+            e.preventDefault();
+
+            this.classList.remove('drag-over');
+
+            if (draggedElement) {
+                const emotionData = draggedElement.dataset.emotion;
+                if (emotionData) {
+                    const emotion = JSON.parse(emotionData);
+                    moveEmotionToSource(emotion);
+                }
+            }
+
+            return false;
         }
 
         // UI 렌더링
         function renderStep() {
             // 소스 영역 렌더링
-            const sourceContainer = document.getElementById('emotionSource');
+            const sourceContainer = document.getElementById('sourceContainer');
             sourceContainer.innerHTML = '';
-            
+
             emotions.forEach(emotion => {
                 if (!isEmotionInQuadrant(emotion)) {
                     sourceContainer.appendChild(createEmotionChip(emotion));
@@ -431,16 +579,18 @@
             Object.keys(appState.quadrantEmotions).forEach(quadrant => {
                 const container = document.getElementById(`${quadrant}-emotions`);
                 container.innerHTML = '';
-                
+
                 appState.quadrantEmotions[quadrant].forEach(emotion => {
                     container.appendChild(createEmotionChip(emotion));
                 });
             });
 
             // 터치 이벤트 재설정
-            setTimeout(() => {
-                addTouchEvents();
-            }, 50);
+            if (isTouchDevice) {
+                setTimeout(() => {
+                    addTouchEvents();
+                }, 50);
+            }
         }
 
         // 감정이 어느 분면에 있는지 확인
@@ -466,7 +616,7 @@
         // 모든 위치에서 감정 제거
         function removeEmotionFromAllLocations(emotion) {
             Object.keys(appState.quadrantEmotions).forEach(key => {
-                appState.quadrantEmotions[key] = appState.quadrantEmotions[key].filter(e => 
+                appState.quadrantEmotions[key] = appState.quadrantEmotions[key].filter(e =>
                     e.name.ko !== emotion.name.ko
                 );
             });
@@ -484,10 +634,10 @@
         function moveEmotionToQuadrant(emotion, quadrant) {
             removeEmotionFromAllLocations(emotion);
             appState.quadrantEmotions[quadrant].push(emotion);
-            
+
             const quadrantName = quadrantInfo[quadrant].title[appState.language];
             showToast(`"${emotion.name.ko}"이(가) ${quadrantName}로 이동했어요!`);
-            
+
             renderStep();
             saveToStorage();
         }
@@ -495,8 +645,7 @@
         // 로컬 스토리지에 저장
         function saveToStorage() {
             try {
-                const serializedState = JSON.stringify(appState);
-                console.log('Saving to storage:', serializedState);
+                localStorage.setItem('emotionQuadrantState', JSON.stringify(appState));
             } catch (error) {
                 console.error('저장 실패:', error);
             }
@@ -505,7 +654,11 @@
         // 로컬 스토리지에서 로드
         function loadFromStorage() {
             try {
-                console.log('Loading from storage (demo mode)');
+                const saved = localStorage.getItem('emotionQuadrantState');
+                if (saved) {
+                    const loadedState = JSON.parse(saved);
+                    appState = { ...appState, ...loadedState };
+                }
             } catch (error) {
                 console.error('로드 실패:', error);
             }
@@ -518,10 +671,70 @@
             handlers: new WeakMap()
         };
 
+        // 터치 이벤트 추가 (개별 칩)
+        function addTouchEventsToChip(chip) {
+            let chipState = {
+                longPressTimer: null,
+                touchStartTime: 0,
+                touchStartPos: null
+            };
+
+            chip.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+
+                chipState.touchStartTime = Date.now();
+                chipState.touchStartPos = {
+                    x: e.touches[0].clientX,
+                    y: e.touches[0].clientY
+                };
+
+                // 길게 누르기 감지
+                chipState.longPressTimer = setTimeout(() => {
+                    handleLongPress(chip);
+                    chipState.longPressTimer = null;
+                }, 500);
+
+                chip.classList.add('touch-pressed');
+            }, { passive: false });
+
+            chip.addEventListener('touchmove', (e) => {
+                if (chipState.longPressTimer && chipState.touchStartPos) {
+                    const currentPos = {
+                        x: e.touches[0].clientX,
+                        y: e.touches[0].clientY
+                    };
+
+                    const distance = Math.sqrt(
+                        Math.pow(currentPos.x - chipState.touchStartPos.x, 2) +
+                        Math.pow(currentPos.y - chipState.touchStartPos.y, 2)
+                    );
+
+                    if (distance > 10) {
+                        clearTimeout(chipState.longPressTimer);
+                        chipState.longPressTimer = null;
+                    }
+                }
+            }, { passive: false });
+
+            chip.addEventListener('touchend', (e) => {
+                if (chipState.longPressTimer) {
+                    clearTimeout(chipState.longPressTimer);
+                    chipState.longPressTimer = null;
+
+                    const touchDuration = Date.now() - chipState.touchStartTime;
+                    if (touchDuration < 500) {
+                        handleShortTap(chip);
+                    }
+                }
+
+                chip.classList.remove('touch-pressed');
+            }, { passive: false });
+        }
+
         // 터치 이벤트 추가
         function addTouchEvents() {
             const emotionChips = document.querySelectorAll('.emotion-chip');
-            
+
             emotionChips.forEach(chip => {
                 // 기존 핸들러 제거
                 const existingHandlers = touchState.handlers.get(chip);
@@ -530,11 +743,11 @@
                     chip.removeEventListener('touchend', existingHandlers.end);
                     chip.removeEventListener('touchmove', existingHandlers.move);
                 }
-                
+
                 // 새 핸들러 생성
                 const handlers = createTouchHandlers(chip);
                 touchState.handlers.set(chip, handlers);
-                
+
                 // 이벤트 추가
                 chip.addEventListener('touchstart', handlers.start, { passive: false });
                 chip.addEventListener('touchend', handlers.end, { passive: false });
@@ -549,21 +762,21 @@
                 touchStartTime: 0,
                 touchStartPos: null
             };
-            
+
             return {
                 start: function(e) {
                     e.preventDefault();
-                    
+
                     if (chipState.longPressTimer) {
                         clearTimeout(chipState.longPressTimer);
                     }
-                    
+
                     chipState.touchStartTime = Date.now();
                     chipState.touchStartPos = {
                         x: e.touches[0].clientX,
                         y: e.touches[0].clientY
                     };
-                    
+
                     // 길게 누르기 감지
                     chipState.longPressTimer = setTimeout(() => {
                         if (chip.isConnected) {
@@ -571,40 +784,40 @@
                         }
                         chipState.longPressTimer = null;
                     }, 500);
-                    
+
                     chip.classList.add('touch-pressed');
                 },
-                
+
                 move: function(e) {
                     if (chipState.longPressTimer && chipState.touchStartPos) {
                         const currentPos = {
                             x: e.touches[0]?.clientX || 0,
                             y: e.touches[0]?.clientY || 0
                         };
-                        
+
                         const distance = Math.sqrt(
                             Math.pow(currentPos.x - chipState.touchStartPos.x, 2) +
                             Math.pow(currentPos.y - chipState.touchStartPos.y, 2)
                         );
-                        
+
                         if (distance > 10) {
                             clearTimeout(chipState.longPressTimer);
                             chipState.longPressTimer = null;
                         }
                     }
                 },
-                
+
                 end: function(e) {
                     if (chipState.longPressTimer) {
                         clearTimeout(chipState.longPressTimer);
                         chipState.longPressTimer = null;
-                        
+
                         const touchDuration = Date.now() - chipState.touchStartTime;
                         if (touchDuration < 500 && chip.isConnected) {
                             handleShortTap(chip);
                         }
                     }
-                    
+
                     chip.classList.remove('touch-pressed');
                     chipState.touchStartTime = 0;
                     chipState.touchStartPos = null;
@@ -626,7 +839,7 @@
         // 길게 누르기 처리
         function handleLongPress(chip) {
             showMobileContextMenu(chip);
-            
+
             // 햅틱 피드백
             if (navigator.vibrate) {
                 navigator.vibrate(50);
@@ -636,13 +849,13 @@
         // 감정 선택
         function selectEmotionForMove(chip) {
             deselectEmotion();
-            
+
             touchState.selectedEmotion = chip;
             chip.classList.add('selected-for-move');
-            
+
             activateTargetAreas();
             showToast('이동할 위치를 탭하세요 (다시 탭하면 취소)');
-            
+
             setTimeout(() => {
                 if (touchState.selectedEmotion === chip) {
                     deselectEmotion();
@@ -654,17 +867,17 @@
         function activateTargetAreas() {
             document.querySelectorAll('.quadrant').forEach(quadrant => {
                 quadrant.classList.add('move-target');
-                
+
                 if (!quadrant._touchMoveHandler) {
                     quadrant._touchMoveHandler = (e) => handleQuadrantTap(e);
                     quadrant.addEventListener('click', quadrant._touchMoveHandler);
                 }
             });
-            
+
             const sourceArea = document.getElementById('emotionSource');
             if (sourceArea) {
                 sourceArea.classList.add('move-target');
-                
+
                 if (!sourceArea._touchMoveHandler) {
                     sourceArea._touchMoveHandler = (e) => handleSourceTap(e);
                     sourceArea.addEventListener('click', sourceArea._touchMoveHandler);
@@ -678,10 +891,10 @@
                 touchState.selectedEmotion.classList.remove('selected-for-move');
                 touchState.selectedEmotion = null;
             }
-            
+
             document.querySelectorAll('.move-target').forEach(target => {
                 target.classList.remove('move-target');
-                
+
                 if (target._touchMoveHandler) {
                     target.removeEventListener('click', target._touchMoveHandler);
                     target._touchMoveHandler = null;
@@ -692,11 +905,11 @@
         // 분면 탭 처리
         function handleQuadrantTap(e) {
             if (!touchState.selectedEmotion) return;
-            
+
             e.stopPropagation();
             const quadrant = e.currentTarget.dataset.quadrant;
             const emotionData = touchState.selectedEmotion.dataset.emotion;
-            
+
             if (emotionData && quadrant) {
                 const emotion = JSON.parse(emotionData);
                 moveEmotionToQuadrant(emotion, quadrant);
@@ -707,10 +920,10 @@
         // 소스 탭 처리
         function handleSourceTap(e) {
             if (!touchState.selectedEmotion) return;
-            
+
             e.stopPropagation();
             const emotionData = touchState.selectedEmotion.dataset.emotion;
-            
+
             if (emotionData) {
                 const emotion = JSON.parse(emotionData);
                 moveEmotionToSource(emotion);
@@ -723,30 +936,30 @@
             try {
                 const emotion1Data = chip1.dataset.emotion;
                 const emotion2Data = chip2.dataset.emotion;
-                
+
                 if (!emotion1Data || !emotion2Data) return;
-                
+
                 const emotion1 = JSON.parse(emotion1Data);
                 const emotion2 = JSON.parse(emotion2Data);
-                
+
                 const location1 = getCurrentEmotionLocation(emotion1);
                 const location2 = getCurrentEmotionLocation(emotion2);
-                
+
                 removeEmotionFromAllLocations(emotion1);
                 removeEmotionFromAllLocations(emotion2);
-                
+
                 if (location1 !== 'source') {
                     appState.quadrantEmotions[location1].push(emotion2);
                 }
                 if (location2 !== 'source') {
                     appState.quadrantEmotions[location2].push(emotion1);
                 }
-                
+
                 showToast('감정카드 위치가 교환되었어요!');
                 renderStep();
                 saveToStorage();
                 deselectEmotion();
-                
+
             } catch (error) {
                 console.error('교환 오류:', error);
                 deselectEmotion();
@@ -758,21 +971,21 @@
             try {
                 const emotionData = chip.dataset.emotion;
                 if (!emotionData) return;
-                
+
                 const emotion = JSON.parse(emotionData);
                 const menu = createMobileMenu(emotion);
-                
+
                 document.querySelectorAll('.mobile-context-menu, .mobile-menu-overlay').forEach(m => m.remove());
-                
+
                 document.body.appendChild(menu);
-                
+
                 const overlay = createOverlay(() => {
                     menu.remove();
                     overlay.remove();
                 });
-                
+
                 document.body.appendChild(overlay);
-                
+
             } catch (error) {
                 console.error('메뉴 표시 오류:', error);
             }
@@ -782,11 +995,11 @@
         function createMobileMenu(emotion) {
             const menu = document.createElement('div');
             menu.className = 'mobile-context-menu';
-            
+
             const currentLocation = getCurrentEmotionLocation(emotion);
             const emotionName = emotion.name[appState.language];
             const emotionDescription = emotion.description[appState.language];
-            
+
             menu.innerHTML = `
                 <div style="text-align: center; margin-bottom: 25px;">
                     <div style="font-size: 3rem; margin-bottom: 10px;">${emotion.emoji}</div>
@@ -816,9 +1029,9 @@
                     </button>
                 </div>
             `;
-            
+
             setupMenuEventListeners(menu, emotion, currentLocation);
-            
+
             return menu;
         }
 
@@ -832,15 +1045,15 @@
                     closeAllMenus();
                 });
             }
-            
+
             // 4분면 버튼들 추가
             const quadrantContainer = menu.querySelector('.quadrant-buttons');
             Object.keys(quadrantInfo).forEach(quadrant => {
                 if (currentLocation === quadrant) return;
-                
+
                 const info = quadrantInfo[quadrant];
                 const titleParts = info.title[appState.language].split(' ');
-                
+
                 const button = document.createElement('button');
                 button.style.cssText = `
                     padding: 12px 8px;
@@ -857,15 +1070,15 @@
                     <div style="font-size: 1rem; margin-bottom: 4px;">${titleParts[0] || ''}</div>
                     <div>${titleParts[1] || ''}</div>
                 `;
-                
+
                 button.addEventListener('click', () => {
                     moveEmotionToQuadrant(emotion, quadrant);
                     closeAllMenus();
                 });
-                
+
                 quadrantContainer.appendChild(button);
             });
-            
+
             // 취소 버튼
             const closeBtn = menu.querySelector('.close-menu-btn');
             if (closeBtn) {
@@ -901,15 +1114,17 @@
         function init() {
             loadFromStorage();
             renderStep();
+            setupDropZones();
             touchState.isInitialized = true;
-            
-            console.log('Emotion 4-Quadrant Explorer 초기화 완료!');
+
+            console.log('감정 4분면 탐색기 초기화 완료!');
+            console.log('Touch device:', isTouchDevice);
         }
 
         // 앱 시작
         window.addEventListener('DOMContentLoaded', init);
 
-        // 전역 함수 등록 (기존 코드와의 호환성을 위해)
+        // 전역 함수 등록 (디버깅용)
         window.appState = appState;
         window.quadrantInfo = quadrantInfo;
         window.getCurrentEmotionLocation = getCurrentEmotionLocation;
@@ -918,6 +1133,14 @@
         window.showToast = showToast;
         window.renderStep = renderStep;
         window.saveToStorage = saveToStorage;
+        
+        // 데이터 초기화 함수 (필요시 콘솔에서 사용)
+        window.resetAllData = function() {
+            if (confirm('모든 데이터를 초기화하시겠습니까?')) {
+                localStorage.clear();
+                location.reload();
+            }
+        };
     </script>
 </body>
 </html>
