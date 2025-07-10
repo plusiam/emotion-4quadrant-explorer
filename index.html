@@ -285,6 +285,182 @@
             background: rgba(255, 255, 255, 1);
             border: 2px dashed #3b82f6;
         }
+
+        /* 감정 추가 버튼 */
+        .add-emotion-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: 2px dashed rgba(255, 255, 255, 0.5);
+            border-radius: 25px;
+            padding: 8px 15px;
+            margin: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 14px;
+            font-weight: 500;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            user-select: none;
+            min-height: 44px;
+            min-width: 44px;
+        }
+
+        .add-emotion-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            border-color: rgba(255, 255, 255, 0.8);
+        }
+
+        /* 감정 추가 모달 */
+        .add-emotion-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            max-width: 90vw;
+            width: 400px;
+            animation: mobileMenuSlideUp 0.3s ease-out;
+        }
+
+        .add-emotion-modal h3 {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #374151;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 5px;
+        }
+
+        .form-group input, .form-group textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.2s ease;
+        }
+
+        .form-group input:focus, .form-group textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+
+        .emoji-input {
+            font-size: 2rem;
+            text-align: center;
+            height: 60px;
+        }
+
+        .emoji-suggestions {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .emoji-btn {
+            padding: 8px;
+            background: #f3f4f6;
+            border: 2px solid transparent;
+            border-radius: 8px;
+            font-size: 1.5rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+
+        .emoji-btn:hover, .emoji-btn.selected {
+            background: #e0e7ff;
+            border-color: #3b82f6;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .modal-buttons button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+
+        .btn-secondary {
+            background: #e5e7eb;
+            color: #374151;
+        }
+
+        .btn-secondary:hover {
+            background: #d1d5db;
+        }
+
+        /* 사용자 정의 감정 표시 */
+        .custom-emotion {
+            position: relative;
+        }
+
+        .custom-emotion::after {
+            content: '✨';
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            font-size: 12px;
+        }
+
+        .delete-emotion-btn {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            width: 20px;
+            height: 20px;
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            font-size: 12px;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
+
+        .custom-emotion:hover .delete-emotion-btn {
+            display: flex;
+        }
     </style>
 </head>
 <body>
@@ -307,6 +483,12 @@
                 </p>
                 <div class="emotion-container" id="sourceContainer">
                     <!-- 감정 카드들이 여기에 동적으로 추가됩니다 -->
+                </div>
+                
+                <!-- 감정 추가 버튼 -->
+                <div class="add-emotion-btn" id="addEmotionBtn">
+                    <span>➕</span>
+                    <span>새 감정 추가</span>
                 </div>
             </div>
 
@@ -347,6 +529,49 @@
         </div>
     </div>
 
+    <!-- 감정 추가 모달 -->
+    <div class="add-emotion-modal" id="addEmotionModal" style="display: none;">
+        <h3>새로운 감정 추가하기</h3>
+        
+        <div class="form-group">
+            <label for="emotionName">감정 이름</label>
+            <input type="text" id="emotionName" placeholder="예: 설렘, 짜증, 뿌듯함..." maxlength="10">
+        </div>
+        
+        <div class="form-group">
+            <label for="emotionEmoji">이모지 선택</label>
+            <input type="text" id="emotionEmoji" class="emoji-input" placeholder="😊" maxlength="2">
+            <div class="emoji-suggestions">
+                <div class="emoji-btn" data-emoji="😊">😊</div>
+                <div class="emoji-btn" data-emoji="😢">😢</div>
+                <div class="emoji-btn" data-emoji="😠">😠</div>
+                <div class="emoji-btn" data-emoji="😰">😰</div>
+                <div class="emoji-btn" data-emoji="🤩">🤩</div>
+                <div class="emoji-btn" data-emoji="😴">😴</div>
+                <div class="emoji-btn" data-emoji="🙄">🙄</div>
+                <div class="emoji-btn" data-emoji="🤔">🤔</div>
+                <div class="emoji-btn" data-emoji="😤">😤</div>
+                <div class="emoji-btn" data-emoji="🥰">🥰</div>
+                <div class="emoji-btn" data-emoji="😭">😭</div>
+                <div class="emoji-btn" data-emoji="😱">😱</div>
+                <div class="emoji-btn" data-emoji="🤯">🤯</div>
+                <div class="emoji-btn" data-emoji="😵">😵</div>
+                <div class="emoji-btn" data-emoji="🤗">🤗</div>
+                <div class="emoji-btn" data-emoji="🤪">🤪</div>
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label for="emotionDescription">감정 설명</label>
+            <textarea id="emotionDescription" rows="2" placeholder="이 감정이 어떤 상태인지 설명해주세요..." maxlength="50"></textarea>
+        </div>
+        
+        <div class="modal-buttons">
+            <button type="button" class="btn-secondary" id="cancelAddEmotion">취소</button>
+            <button type="button" class="btn-primary" id="saveAddEmotion">추가하기</button>
+        </div>
+    </div>
+
     <script>
         // 앱 상태 관리
         let appState = {
@@ -357,7 +582,8 @@
                 q2: [], // 고에너지 긍정
                 q3: [], // 저에너지 부정
                 q4: []  // 저에너지 긍정
-            }
+            },
+            customEmotions: [] // 사용자 정의 감정
         };
 
         // 4분면 정보
@@ -427,10 +653,11 @@
         }
 
         // 감정 카드 생성
-        function createEmotionChip(emotion) {
+        function createEmotionChip(emotion, isCustom = false) {
             const chip = document.createElement('div');
-            chip.className = 'emotion-chip';
+            chip.className = isCustom ? 'emotion-chip custom-emotion' : 'emotion-chip';
             chip.dataset.emotion = JSON.stringify(emotion);
+            chip.dataset.isCustom = isCustom;
             chip.draggable = true; // 드래그 가능 설정
 
             const emoji = document.createElement('span');
@@ -441,6 +668,19 @@
 
             chip.appendChild(emoji);
             chip.appendChild(name);
+
+            // 사용자 정의 감정에는 삭제 버튼 추가
+            if (isCustom) {
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'delete-emotion-btn';
+                deleteBtn.innerHTML = '×';
+                deleteBtn.title = '감정 삭제';
+                deleteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    deleteCustomEmotion(emotion);
+                });
+                chip.appendChild(deleteBtn);
+            }
 
             // 드래그 이벤트 추가
             addDragEvents(chip);
@@ -563,15 +803,28 @@
             return false;
         }
 
+        // 모든 감정 가져오기 (기본 + 사용자 정의)
+        function getAllEmotions() {
+            return [...emotions, ...appState.customEmotions];
+        }
+
         // UI 렌더링
         function renderStep() {
             // 소스 영역 렌더링
             const sourceContainer = document.getElementById('sourceContainer');
             sourceContainer.innerHTML = '';
 
+            // 기본 감정들 추가
             emotions.forEach(emotion => {
                 if (!isEmotionInQuadrant(emotion)) {
-                    sourceContainer.appendChild(createEmotionChip(emotion));
+                    sourceContainer.appendChild(createEmotionChip(emotion, false));
+                }
+            });
+
+            // 사용자 정의 감정들 추가
+            appState.customEmotions.forEach(emotion => {
+                if (!isEmotionInQuadrant(emotion)) {
+                    sourceContainer.appendChild(createEmotionChip(emotion, true));
                 }
             });
 
@@ -581,7 +834,8 @@
                 container.innerHTML = '';
 
                 appState.quadrantEmotions[quadrant].forEach(emotion => {
-                    container.appendChild(createEmotionChip(emotion));
+                    const isCustom = appState.customEmotions.some(ce => ce.name.ko === emotion.name.ko);
+                    container.appendChild(createEmotionChip(emotion, isCustom));
                 });
             });
 
@@ -1110,11 +1364,154 @@
             document.querySelectorAll('.mobile-context-menu, .mobile-menu-overlay').forEach(el => el.remove());
         }
 
+        // 감정 추가 모달 열기
+        function openAddEmotionModal() {
+            const modal = document.getElementById('addEmotionModal');
+            const overlay = createOverlay(() => closeAddEmotionModal());
+            
+            modal.style.display = 'block';
+            document.body.appendChild(overlay);
+            
+            // 입력 필드 초기화
+            document.getElementById('emotionName').value = '';
+            document.getElementById('emotionEmoji').value = '';
+            document.getElementById('emotionDescription').value = '';
+            
+            // 이모지 선택 초기화
+            document.querySelectorAll('.emoji-btn').forEach(btn => {
+                btn.classList.remove('selected');
+            });
+            
+            // 첫 번째 입력 필드에 포커스
+            setTimeout(() => {
+                document.getElementById('emotionName').focus();
+            }, 100);
+        }
+
+        // 감정 추가 모달 닫기
+        function closeAddEmotionModal() {
+            const modal = document.getElementById('addEmotionModal');
+            const overlay = document.querySelector('.mobile-menu-overlay');
+            
+            modal.style.display = 'none';
+            if (overlay) overlay.remove();
+        }
+
+        // 새로운 감정 추가
+        function addCustomEmotion() {
+            const name = document.getElementById('emotionName').value.trim();
+            const emoji = document.getElementById('emotionEmoji').value.trim();
+            const description = document.getElementById('emotionDescription').value.trim();
+            
+            // 입력 검증
+            if (!name) {
+                showToast('감정 이름을 입력해주세요!');
+                return;
+            }
+            
+            if (!emoji) {
+                showToast('이모지를 선택해주세요!');
+                return;
+            }
+            
+            if (!description) {
+                showToast('감정 설명을 입력해주세요!');
+                return;
+            }
+            
+            // 중복 검사
+            const allEmotions = getAllEmotions();
+            if (allEmotions.some(e => e.name.ko === name)) {
+                showToast('이미 존재하는 감정 이름입니다!');
+                return;
+            }
+            
+            // 새 감정 객체 생성
+            const newEmotion = {
+                name: { ko: name, en: name },
+                emoji: emoji,
+                description: { ko: description, en: description }
+            };
+            
+            // 사용자 정의 감정 배열에 추가
+            appState.customEmotions.push(newEmotion);
+            
+            showToast(`"${name}" 감정이 추가되었어요! ✨`);
+            
+            // 저장 및 렌더링
+            saveToStorage();
+            renderStep();
+            closeAddEmotionModal();
+        }
+
+        // 사용자 정의 감정 삭제
+        function deleteCustomEmotion(emotion) {
+            if (!confirm(`"${emotion.name.ko}" 감정을 삭제하시겠습니까?`)) {
+                return;
+            }
+            
+            // 분면에서 제거
+            removeEmotionFromAllLocations(emotion);
+            
+            // 사용자 정의 감정 배열에서 제거
+            appState.customEmotions = appState.customEmotions.filter(e => 
+                e.name.ko !== emotion.name.ko
+            );
+            
+            showToast(`"${emotion.name.ko}" 감정이 삭제되었어요!`);
+            
+            // 저장 및 렌더링
+            saveToStorage();
+            renderStep();
+        }
+
+        // 이모지 선택 처리
+        function setupEmojiSelection() {
+            const emojiInput = document.getElementById('emotionEmoji');
+            
+            document.querySelectorAll('.emoji-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    // 기존 선택 해제
+                    document.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('selected'));
+                    
+                    // 새 선택 표시
+                    btn.classList.add('selected');
+                    
+                    // 입력 필드에 이모지 설정
+                    emojiInput.value = btn.dataset.emoji;
+                });
+            });
+        }
+
         // 초기화
         function init() {
             loadFromStorage();
             renderStep();
             setupDropZones();
+            setupEmojiSelection();
+            
+            // 감정 추가 버튼 이벤트
+            document.getElementById('addEmotionBtn').addEventListener('click', openAddEmotionModal);
+            
+            // 모달 버튼 이벤트
+            document.getElementById('saveAddEmotion').addEventListener('click', addCustomEmotion);
+            document.getElementById('cancelAddEmotion').addEventListener('click', closeAddEmotionModal);
+            
+            // 엔터 키로 감정 추가
+            document.getElementById('emotionName').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    document.getElementById('emotionEmoji').focus();
+                }
+            });
+            
+            document.getElementById('emotionDescription').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && e.ctrlKey) {
+                    e.preventDefault();
+                    addCustomEmotion();
+                }
+            });
+            
             touchState.isInitialized = true;
 
             console.log('감정 4분면 탐색기 초기화 완료!');
@@ -1136,9 +1533,27 @@
         
         // 데이터 초기화 함수 (필요시 콘솔에서 사용)
         window.resetAllData = function() {
-            if (confirm('모든 데이터를 초기화하시겠습니까?')) {
+            if (confirm('모든 데이터를 초기화하시겠습니까?\n(사용자 정의 감정도 모두 삭제됩니다)')) {
                 localStorage.clear();
                 location.reload();
+            }
+        };
+        
+        // 사용자 정의 감정만 초기화
+        window.resetCustomEmotions = function() {
+            if (confirm('사용자 정의 감정을 모두 삭제하시겠습니까?')) {
+                appState.customEmotions = [];
+                
+                // 분면에서도 사용자 정의 감정들 제거
+                Object.keys(appState.quadrantEmotions).forEach(quadrant => {
+                    appState.quadrantEmotions[quadrant] = appState.quadrantEmotions[quadrant].filter(emotion => {
+                        return emotions.some(baseEmotion => baseEmotion.name.ko === emotion.name.ko);
+                    });
+                });
+                
+                saveToStorage();
+                renderStep();
+                showToast('사용자 정의 감정이 모두 삭제되었습니다.');
             }
         };
     </script>
